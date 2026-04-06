@@ -2,8 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>My Book Finder</title>
-
+<title>Movie Finder App</title>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <style>
@@ -12,178 +11,196 @@ body{
     margin:0;
     background:#f4f6f8;
 }
-nav{
-    background:#2c3e50;
-    padding:15px;
-}
-nav a{
+header{
+    background:#111;
     color:white;
-    margin-right:20px;
-    text-decoration:none;
-    font-weight:bold;
-}
-.container{
-    padding:20px;
-}
-.bookCard{
-    display:inline-block;
-    width:200px;
-    background:white;
-    margin:10px;
-    padding:10px;
-    border-radius:8px;
-    box-shadow:0 0 5px #ccc;
+    padding:15px;
     text-align:center;
 }
-.bookCard img{
-    height:200px;
+.search-section{
+    text-align:center;
+    padding:20px;
 }
-.hidden{display:none;}
+input{
+    padding:10px;
+    width:260px;
+}
 button{
-    padding:8px 15px;
-    background:#3498db;
-    color:white;
-    border:none;
-    border-radius:5px;
+    padding:10px 15px;
+    cursor:pointer;
 }
-input{padding:8px;width:300px;}
-select{padding:6px;}
+.container{
+    display:flex;
+    padding:20px;
+}
+#results{
+    width:60%;
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:15px;
+}
+#details{
+    width:40%;
+    padding:20px;
+    background:white;
+    margin-left:20px;
+    border-radius:8px;
+}
+.movie{
+    background:white;
+    padding:10px;
+    border-radius:8px;
+    text-align:center;
+    cursor:pointer;
+}
+.movie img{
+    height:180px;
+}
+#pagination{
+    text-align:center;
+    margin-bottom:15px;
+}
+.page-btn{
+    margin:5px;
+    padding:8px 12px;
+}
+.active{
+    background:black;
+    color:white;
+}
+#collection{
+    padding:20px;
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:15px;
+}
+.collection-title{
+    text-align:center;
+}
 </style>
 </head>
 
 <body>
 
-<nav>
-<a href="#" id="navHome">Home</a>
-<a href="#" id="navShelf">My Bookshelf</a>
-</nav>
+<header>
+<h1>🎬 Movie Finder</h1>
+</header>
+
+<section class="search-section">
+<input type="text" id="searchBox" placeholder="Search movies...">
+<button id="searchBtn">Search</button>
+</section>
+
+<section id="pagination"></section>
 
 <div class="container">
-
-<!-- HOME SEARCH PAGE -->
-<div id="homePage">
-<h1>Book Search</h1>
-<input type="text" id="searchBox" placeholder="Search books...">
-<button id="searchBtn">Search</button>
-<br><br>
-Page:
-<select id="pageSelect"></select>
 <div id="results"></div>
+
+<div id="details">
+<h2>Movie Details</h2>
+<p>Select a movie to see details.</p>
+</div>
 </div>
 
-<!-- BOOK DETAILS PAGE -->
-<div id="detailsPage" class="hidden"></div>
-
-<!-- BOOKSHELF PAGE -->
-<div id="shelfPage" class="hidden">
-<h1>My Bookshelf</h1>
-<div id="bookshelfResults"></div>
-</div>
-
-</div>
+<h2 class="collection-title">⭐ Popular Movies</h2>
+<div id="collection"></div>
 
 <script>
+const API_KEY = "73906d492d324e7602c0719c3a8324ac";
+const IMG_URL = "https://image.tmdb.org/t/p/w500";
 
-let currentQuery="";
-let resultsPerPage=10;
-let allResults=[];
+let allResults = [];
+let currentPage = 1;
+const resultsPerPage = 10;
 
-/* NAVIGATION */
-$("#navHome").click(()=>showPage("home"));
-$("#navShelf").click(()=>{showPage("shelf");loadBookshelf();});
+//////////////////////////////////////////////////
+// SEARCH MOVIES
+//////////////////////////////////////////////////
+$("#searchBtn").click(function () {
+    let query = $("#searchBox").val();
 
-function showPage(page){
-    $("#homePage,#detailsPage,#shelfPage").addClass("hidden");
-    if(page==="home") $("#homePage").removeClass("hidden");
-    if(page==="details") $("#detailsPage").removeClass("hidden");
-    if(page==="shelf") $("#shelfPage").removeClass("hidden");
-}
-
-/* SEARCH BOOKS */
-$("#searchBtn").click(function(){
-    currentQuery=$("#searchBox").val();
-    if(currentQuery==="") return;
-    let url=`https://www.googleapis.com/books/v1/volumes?q=${currentQuery}&maxResults=40`;
-    $.getJSON(url,function(data){
-        allResults=data.items.slice(0,60);
-        buildPagination();
-        displayPage(1);
+    $.ajax({
+        url:`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${query}&page=1`,
+        success:function(data){
+            // get up to 50 results
+            allResults = data.results.slice(0,50);
+            currentPage = 1;
+            createPagination();
+            displayPage();
+        }
     });
 });
 
-/* PAGINATION */
-function buildPagination(){
-    $("#pageSelect").empty();
-    let pages=Math.ceil(allResults.length/resultsPerPage);
+//////////////////////////////////////////////////
+// PAGINATION
+//////////////////////////////////////////////////
+function createPagination(){
+    $("#pagination").empty();
+    let pages = Math.ceil(allResults.length / resultsPerPage);
+
     for(let i=1;i<=pages;i++){
-        $("#pageSelect").append(`<option value="${i}">${i}</option>`);
+        $("#pagination").append(
+            `<button class="page-btn" onclick="goToPage(${i})">${i}</button>`
+        );
     }
 }
 
-$("#pageSelect").change(function(){
-    displayPage($(this).val());
-});
+function goToPage(page){
+    currentPage = page;
+    displayPage();
+}
 
-function displayPage(page){
+//////////////////////////////////////////////////
+// DISPLAY SEARCH RESULTS
+//////////////////////////////////////////////////
+function displayPage(){
     $("#results").empty();
-    let start=(page-1)*resultsPerPage;
-    let end=start+resultsPerPage;
-    let books=allResults.slice(start,end);
 
-    books.forEach(book=>{
-        let info=book.volumeInfo;
-        let img=info.imageLinks?.thumbnail || "";
+    let start = (currentPage-1)*resultsPerPage;
+    let pageItems = allResults.slice(start,start+resultsPerPage);
+
+    pageItems.forEach(movie=>{
         $("#results").append(`
-        <div class="bookCard">
-            <img src="${img}">
-            <h3><a href="?book=${book.id}">${info.title}</a></h3>
-        </div>`);
-    });
-}
-
-/* BOOK DETAILS */
-function loadDetails(id){
-    let url=`https://www.googleapis.com/books/v1/volumes/${id}`;
-    $.getJSON(url,function(data){
-        let b=data.volumeInfo;
-        let price=data.saleInfo?.listPrice?.amount || "N/A";
-        $("#detailsPage").html(`
-            <h1>${b.title}</h1>
-            <img src="${b.imageLinks?.thumbnail}">
-            <p><b>Authors:</b> ${b.authors}</p>
-            <p><b>Publisher:</b> ${b.publisher}</p>
-            <p><b>Price:</b> ${price}</p>
-            <p>${b.description}</p>
+            <div class="movie" onclick='showDetails(${JSON.stringify(movie)})'>
+                <img src="${IMG_URL+movie.poster_path}">
+                <h4>${movie.title}</h4>
+            </div>
         `);
-        showPage("details");
     });
 }
 
-/* BOOKSHELF */
-const bookshelfIDs=["0yfauGsKOjAC","6gfDfhmmHxMC","M6SwUjgBoy8C","kJw4xgJSEqMC","gTycDAEACAAJ"];
+//////////////////////////////////////////////////
+// MOVIE DETAILS PANEL
+//////////////////////////////////////////////////
+function showDetails(movie){
+    $("#details").html(`
+        <h2>${movie.title}</h2>
+        <img src="${IMG_URL+movie.poster_path}" width="200">
+        <p><b>Release:</b> ${movie.release_date}</p>
+        <p><b>Rating:</b> ${movie.vote_average}</p>
+        <p>${movie.overview}</p>
+    `);
+}
 
-function loadBookshelf(){
-    $("#bookshelfResults").empty();
-    bookshelfIDs.forEach(id=>{
-        let url=`https://www.googleapis.com/books/v1/volumes/${id}`;
-        $.getJSON(url,function(data){
-            let info=data.volumeInfo;
-            let img=info.imageLinks?.thumbnail || "";
-            $("#bookshelfResults").append(`
-            <div class="bookCard">
-                <img src="${img}">
-                <h3><a href="?book=${id}">${info.title}</a></h3>
-            </div>`);
-        });
+//////////////////////////////////////////////////
+// PREDEFINED COLLECTION (POPULAR MOVIES)
+//////////////////////////////////////////////////
+$(document).ready(function(){
+    $.ajax({
+        url:`https://api.themoviedb.org/3/movie/popular?api_key=${API_KEY}`,
+        success:function(data){
+            data.results.slice(0,10).forEach(movie=>{
+                $("#collection").append(`
+                    <div class="movie" onclick='showDetails(${JSON.stringify(movie)})'>
+                        <img src="${IMG_URL+movie.poster_path}">
+                        <p>${movie.title}</p>
+                    </div>
+                `);
+            });
+        }
     });
-}
-
-/* CHECK URL FOR BOOK ID */
-const params=new URLSearchParams(window.location.search);
-if(params.get("book")){
-    loadDetails(params.get("book"));
-}
-
+});
 </script>
+
 </body>
 </html>
